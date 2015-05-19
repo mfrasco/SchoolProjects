@@ -1,0 +1,56 @@
+---
+title: "LogReg"
+author: "Michael Frasco"
+date: "May 10, 2015"
+output: pdf_document
+---
+
+Results: We used the glmnet package to achive an accuracy of about 88% on the unseen test data. We trained our model using 10-fold cross validation to select the value of the regularization parameter that minimized the mis-classification error.
+
+```{r, echo=FALSE, warning=FALSE}
+set.seed(666)
+library(lattice)
+library(ggplot2)
+library(caret)
+library(Matrix)
+library(foreach)
+library(glmnet)
+load('digits.RData')
+```
+
+```{r, echo=FALSE}
+num.class <- dim(training.data)[1] # number of classes
+num.training <- dim(training.data)[2]  # Number of training data per class
+d <- prod(dim(training.data)[3:4]) # Dimension of each training image (rowsxcolumns)
+num.test <- dim(test.data)[2] # Number of test data
+dim(training.data) <- c(num.class * num.training, d) # Reshape training data to 2-dim matrix
+dim(test.data) <- c(num.class * num.test, d) # Same for test.
+training.label <- rep(0:9, num.training) # Labels of training data.
+test.label <- rep(0:9, num.test) # Labels of test data
+```
+
+Since the glmnet package comes with a cross validation function, we do not need to seperate the 5,000 images in the training data into a 4,000 image set and a 1,000 image set for the validation data. The glmnet already does this by performing k-fold cross validation over a sequence of regularization parameters.
+
+```{r}
+cv.fit <- cv.glmnet(x=training.data, y=as.factor(training.label),
+                    family="multinomial", type.measure="class")
+plot(cv.fit)
+```
+
+The plot above is the cross-validated misclassification error after running the cv.glmnet() function. The right most vertical dashed line represents the value of lambda that minimizes the error. The left vertical dashed line represents the value of lambda that should be used to avoid over-fitting. This is calculated by finding the largest value of lambda such that the misclassification error is within 1 standard error of the minimum. If we feared overfitting, we should choose the larger value of lambda. However, since we know that the pictures in the test data are of the same form as the pictures in the training data (i.e. similar variance drawn from the same distribution), we can choose the smaller lambda.
+
+```{r}
+print(cv.fit$lambda.min)
+print(cv.fit$lambda.1se)
+```
+
+We now use the smaller value of lambda to get the error of this model on the test data.
+
+```{r}
+preds = as.numeric(predict(cv.fit, test.data,
+                           s="lambda.min", type="class"))
+print(mean(preds == test.label))
+```
+
+We achive an accuracy of about 88%.
+
